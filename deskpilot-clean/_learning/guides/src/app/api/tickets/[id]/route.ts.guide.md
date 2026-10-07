@@ -30,7 +30,10 @@ This route handles single-ticket operations:
 - Audit-friendly update delegation
 
 ## Common mistakes
-- Treating missing and `null` assignee as same thing.
+- Treating missing and `null` assignee as same thing. This file makes exactly that mistake: a missing
+  `assigneeId` becomes `undefined` (lines 32-37) but is still passed as a key (line 46), and the store's
+  `hasOwnProperty` check (`src/lib/store.ts:217`) then writes `null`. See `_learning/03-PATTERNS.md`,
+  finding 13.
 - Patching fields directly in route instead of store helper.
 - Allowing unsafe types in tags array.
 

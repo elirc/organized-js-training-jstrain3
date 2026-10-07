@@ -1,3 +1,5 @@
+> **DeskPilot support-ticket app.** The README below is the `create-next-app` default. For what this app does, how data flows through `src/lib/store.ts`, and a guided exercise path, read [`_learning/00-ARCHITECTURE.md`](_learning/00-ARCHITECTURE.md) and then [`_learning/01-LEARNING-PATH.md`](_learning/01-LEARNING-PATH.md). Run it with `npm install` then `npm run dev`; the first request creates `data/deskpilot.json` from `src/lib/seed-data.ts`.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -16,7 +18,7 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+You can start editing the page by modifying `src/app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

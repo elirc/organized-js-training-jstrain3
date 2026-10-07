@@ -1,3 +1,11 @@
+> **What is in this snapshot.** This repository is a snapshot of [elirc/jstrain3](https://github.com/elirc/jstrain3), taken before that repo added its `astraupskill/` course and `tests/` folder. Unlike the maintained repo, it also carries three DeskPilot folders:
+>
+> - [`deskpilot-clean/`](deskpilot-clean/) is the working support-ticket app (Next.js 14, JSON-file store, no database). Start with [`deskpilot-clean/_learning/00-ARCHITECTURE.md`](deskpilot-clean/_learning/00-ARCHITECTURE.md). It is an older copy of [elirc/deskpilot-clean](https://github.com/elirc/deskpilot-clean): its `src/lib/store.ts` predates that repo's no-op update fix, and its docs were re-checked against this copy on 2026-10-06.
+> - [`deskpilot/`](deskpilot/) and [`deskpilot-app/`](deskpilot-app/) are unmodified `create-next-app` scaffolds. Their `src/app/page.tsx` is byte-identical to the one at this root.
+> - [`docs/deskpilot-build-prompt-expanded.md`](docs/deskpilot-build-prompt-expanded.md) is the phased build specification for DeskPilot.
+>
+> The root app itself is the same unmodified scaffold.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -16,7 +24,7 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+You can start editing the page by modifying `src/app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

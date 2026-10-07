@@ -12,7 +12,9 @@ This is the project’s current persistence and repository layer. It handles rea
   - resolved from `process.cwd()` so runtime location is predictable.
 - `writeQueue`:
   - Promise chain used as a simple write lock to serialize writes.
-  - Prevents overlapping writes from corrupting file contents.
+  - Prevents two writes from interleaving bytes in the file.
+  - Does **not** prevent lost updates: each caller reads the file *before* queueing its write, so
+    concurrent callers overwrite each other (see `_learning/03-PATTERNS.md`, finding 1).
 - `ensureDbFile()`:
   - creates data directory if missing.
   - attempts reading DB file.
@@ -36,7 +38,7 @@ This is the project’s current persistence and repository layer. It handles rea
   - combines comment stream + event stream into one chronological list.
 - `nextTicketNumber()`:
   - computes max per-org ticket number + 1.
-  - simple, but not concurrency-safe at distributed scale.
+  - not safe even in one process: concurrent creates read the same max and get the same number.
 - `nowIso()`:
   - centralized timestamp creation.
 - `buildEvent(...)`:
@@ -62,7 +64,7 @@ This is the project’s current persistence and repository layer. It handles rea
   - appends explicit status change event.
 - `setTicketStatus(...)`:
   - updates status.
-  - sets `resolvedAt` for resolved/closed.
+  - sets `resolvedAt` for resolved/closed, but never clears it when a ticket is reopened.
   - updates timestamp and persists.
 
 ## State management, scope, closures
@@ -89,14 +91,18 @@ This is the project’s current persistence and repository layer. It handles rea
 - Repository pattern (lightweight)
 - Append-only audit events
 - Tenant scoping
-- Serialization queue for write safety
+- Serialization queue (orders writes; does not make read-modify-write atomic)
 - Derived timeline composition
 
 ## Common mistakes
 - Forgetting org filter, causing cross-tenant leakage.
 - Updating ticket fields without writing an event.
 - Bypassing `writeDb` and breaking write ordering guarantees.
-- Treating `nextTicketNumber` as globally safe under high concurrency.
+- Treating `nextTicketNumber` as safe under concurrent requests.
+- Assuming `writeQueue` makes read-modify-write atomic.
+- Using `hasOwnProperty` to mean "the client sent this field". In `updateTicketFields` (line 217) it is
+  true for a key whose value is `undefined`, and the PATCH route always passes `assigneeId`, so every
+  PATCH clears the assignee (see `_learning/03-PATTERNS.md`, finding 13).
 
 ## Mini exercises
 1. Add `listTicketsByCustomer(orgId, customerId)` and update one page to use it.

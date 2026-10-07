@@ -1,229 +1,130 @@
 # DeskPilot Concepts Glossary
 
-Each concept includes a plain-English definition and a short example from this codebase.
+Each term has a one-line definition and where it appears in this codebase. Snippets are copied from
+the cited lines.
 
-## API Envelope
-A consistent JSON shape for all API responses.
-```ts
-return NextResponse.json({ success: true, data }, init);
-```
+## Request handling
 
-## Authentication Guard
-A function that blocks access unless a user is present.
-```ts
-const user = await requireUser();
-```
+**API envelope** — one JSON shape for every response, success or failure.
+`src/lib/api.ts:3-5`: `return NextResponse.json({ success: true, data }, init);`
+Failures use `fail(code, message, status)` (lines 7-15) → `{ success: false, error: { code, message } }`.
 
-## Authorization (Ownership Check)
-Verifying the caller is allowed to access a specific record.
-```ts
-if (!ticket || ticket.customerId !== customerId) return fail("NOT_FOUND", ...);
-```
+**Route handler** — an exported `GET`/`POST`/`PATCH` function in a `route.ts` file under `src/app/api`.
+The folder path is the URL: `src/app/api/tickets/[id]/transition/route.ts` serves
+`POST /api/tickets/:id/transition`.
 
-## State Machine
-A rule table that controls which status changes are legal.
-```ts
-const rules: Record<TicketStatus, TicketStatus[]> = { open: ["in_progress", ...] };
-```
+**Dynamic route param** — the `[id]` segment of a path, read from the handler's second argument.
+`src/app/api/tickets/[id]/route.ts:12`: `const { id } = await context.params;`
 
-## Guard Clause
-Early return/throw for invalid conditions.
-```ts
-if (!nextStatus) return fail("VALIDATION_ERROR", ...);
-```
+**Authentication guard** — a call that should stop unauthenticated callers. Here it always succeeds,
+because `requireUser` (`src/lib/auth.ts:11-17`) returns the seeded admin. See `03-PATTERNS.md`
+finding 2.
 
-## Dynamic Route Param
-A path value like `[id]` read from route context.
-```ts
-const { id } = await context.params;
-```
+**Runtime validation** — checking `unknown` input before trusting it. TypeScript types disappear at
+runtime; a `payload.priority` typed by a cast can still be any JSON value.
+`src/app/api/tickets/route.ts:26`: `const subject = parseNonEmptyString(payload.subject, 3, 200);`
 
-## Server Component
-A React component that runs on the server and can fetch directly.
-```tsx
-export default async function TicketsPage(...) { ... }
-```
+**Type narrowing** — a check after which TypeScript knows a more specific type.
+`src/lib/validators.ts:26-28`: `if (typeof value !== "string") { return null; }` — below it, `value` is a
+`string`.
 
-## Client Component
-A component marked with `"use client"` that can use hooks/events.
-```tsx
-"use client";
-const [loading, setLoading] = useState(false);
-```
+**Guard clause** — return early on bad input so the rest of the function handles only the valid case.
+`src/app/api/tickets/[id]/transition/route.ts:16-18`:
+`if (!nextStatus) { return fail("VALIDATION_ERROR", "nextStatus is invalid."); }`
 
-## Controlled Input
-Form input bound to React state.
-```tsx
-<input value={subject} onChange={(e) => setSubject(e.target.value)} />
-```
+**HTTP 201 Created** — status for a successful create.
+`src/app/api/tickets/route.ts:46`: `return ok({ ticket }, { status: 201 });`
 
-## `router.refresh()`
-Tells Next.js to re-fetch current route data after mutation.
-```ts
-router.refresh();
-```
+## Domain
 
-## `router.push()`
-Navigates user to another route in client code.
-```ts
-router.push(`/tickets/${json.data.ticket.id}`);
-```
+**Union type** — a type that allows only listed values.
+`src/lib/types.ts:9`: `export type TicketPriority = "low" | "medium" | "high" | "urgent";`
 
-## Validation (Runtime)
-Checking `unknown` request values before use.
-```ts
-const subject = parseNonEmptyString(payload.subject, 3, 200);
-```
+**State machine (rule table)** — a map from each state to its legal next states.
+`src/lib/state-machine.ts:4-11`; the single check is line 36.
 
-## Type Narrowing
-Turning a broad type into a safe specific type.
-```ts
-if (typeof value !== "string") return null;
-```
+**Custom error class** — an `Error` subclass so callers can tell expected failures from bugs with
+`instanceof`. `TransitionError`, `src/lib/state-machine.ts:13-18`, caught at
+`src/app/api/tickets/[id]/transition/route.ts:29`.
 
-## Union Type
-Type that only allows specific values.
-```ts
-type TicketPriority = "low" | "medium" | "high" | "urgent";
-```
+**Tenant scoping** — filtering every query by organization so one customer org never sees another's
+data. `src/lib/store.ts:77`: `ticket.orgId === orgId && ticket.id === ticketId`.
 
-## Null vs Undefined
-`null` means “explicitly empty,” `undefined` often means “not provided.”
-```ts
-payload.assigneeId === null ? null : undefined;
-```
+**Ownership check (object-level authorization)** — checking that *this* caller owns *this* record, not
+just that the caller is logged in. Missing ownership checks are called IDOR (insecure direct object
+reference). `src/app/api/portal/tickets/[id]/comments/route.ts:33`:
+`if (!ticket || ticket.customerId !== customerId)`.
 
-## Tenant Scoping
-Limiting data by organization to prevent cross-org leaks.
-```ts
-ticket.orgId === orgId
-```
+**Portal token** — a per-customer secret string that stands in for a login
+(`src/lib/seed-data.ts`, e.g. `portalToken: "portal_alice_token"`). Looked up by exact match in each
+portal route's `getPortalCustomerId` (lines 6-12).
 
-## Repository Pattern (Lightweight)
-Centralized data access methods in one module.
-```ts
-export async function listTickets(...) { ... }
-```
+## Persistence
 
-## Seed Data
-Default records used when the data store is empty.
-```ts
-await writeFile(DB_PATH, JSON.stringify(seedDb, null, 2), "utf8");
-```
+**JSON file store** — the whole database is one file, `data/deskpilot.json`, read and written in full.
+`src/lib/store.ts:30-38`.
 
-## Write Serialization Queue
-A promise chain that prevents overlapping writes.
-```ts
-writeQueue = writeQueue.then(() => writeDbInternal(db));
-```
+**Seed data** — records written on first run. `src/lib/store.ts:26` writes `seedDb` when the file
+cannot be read.
 
-## Append-Only Audit Event
-Recording changes as new events instead of mutating old event rows.
-```ts
-db.ticketEvents.push(buildEvent({ eventType: "ticket.updated", ... }));
-```
+**Read-modify-write** — read current state, change it in memory, write it back. Safe only if nothing
+else writes in between. Every store mutation has this shape, e.g. `createTicket`, `store.ts:149-185`.
 
-## Timeline Read Model
-A merged view of comments and events sorted by time.
-```ts
-return [...comments, ...events].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-```
+**Lost update** — the failure of unprotected read-modify-write: two requests read the same state and
+the later write discards the earlier one. Reproduce it with `01-LEARNING-PATH.md` exercise 2.2.
 
-## SSE (Server-Sent Events)
-One-way real-time updates from server to browser over HTTP.
-```ts
-headers: { "Content-Type": "text/event-stream" }
-```
+**Write queue (promise chain)** — `store.ts:19,42`: `writeQueue = writeQueue.then(() => writeDbInternal(db));`
+It orders whole-file writes so bytes from two writes never interleave. It does **not** prevent lost
+updates, because each queued `db` was read before the others were written.
 
-## Closure
-A function using variables from outer scope later.
-```ts
-let interval;
-cancel() { if (interval) clearInterval(interval); }
-```
+**Audit event** — an append-only record of what changed, with old and new values.
+`src/lib/store.ts:233-245` pushes `ticket.updated` with `oldValue`/`newValue`.
 
-## Side Effect
-Operation that changes state outside function scope (disk/network/time).
-```ts
-await writeFile(DB_PATH, JSON.stringify(db, null, 2), "utf8");
-```
+**Read model** — data reshaped for one screen. `getTimeline` (`store.ts:92-102`) merges comments and
+events and sorts by time.
 
-## Id Generation
-Creating unique IDs for entities/events.
-```ts
-id: randomUUID()
-```
+## Next.js and React
 
-## Portal Token Auth
-Authenticating public users with token instead of session.
-```ts
-const token = request.headers.get("x-portal-token");
-```
+**Server Component** — the default in the App Router: an `async` component that runs on the server and
+can call `src/lib` directly. `src/app/tickets/page.tsx:5-18`.
 
-## Placeholder Implementation
-A temporary stub preserving API contract before real logic.
-```ts
-return ok({ notifications: [] as Array<Record<string, unknown>> });
-```
+**Client Component** — a file starting with `"use client"` that can use state and event handlers.
+All five live in `src/components/`.
 
-## HTTP 201 Created
-Status code indicating a new resource was created.
-```ts
-return ok({ ticket }, { status: 201 });
-```
+**Server/client boundary** — props passed from a Server Component to a Client Component are serialized
+into the page. Pass only what the browser needs; see `03-PATTERNS.md` finding 10.
 
-## Not Found Boundary
-Dedicated UI for missing resources.
-```ts
-notFound();
-```
+**Controlled input** — an input whose value comes from React state.
+`src/components/tickets/CommentComposer.tsx`: `value={body}` with
+`onChange={(event) => setBody(event.target.value)}`.
 
-## Error Boundary
-Fallback UI when rendering throws.
-```tsx
-export default function ErrorPage({ error, reset }: { ... }) { ... }
-```
+**`router.refresh()`** — re-runs the current route's Server Components after a mutation, keeping client
+state. `src/components/tickets/TicketActions.tsx:41`.
 
-## Loading Boundary
-Fallback UI while server data is loading.
-```tsx
-export default function LoadingPage() { ... }
-```
+**`router.push()`** — client-side navigation to a new URL.
+`src/components/tickets/NewTicketForm.tsx:44`: ``router.push(`/tickets/${json.data.ticket.id}`);``
 
-## Design Tokens
-Reusable CSS variables for theme consistency.
-```css
-:root { --accent: #0077ff; --danger: #d63939; }
-```
+**`notFound()`** — throws to render the nearest `not-found.tsx`.
+`src/app/tickets/[id]/page.tsx:16-18`.
 
-## Route Group
-A folder like `(auth)` used for organization without affecting URL.
-```text
-src/app/(auth)/login/page.tsx
-```
+**Error and loading boundaries** — `src/app/error.tsx` renders when a route segment throws;
+`src/app/loading.tsx` renders while a Server Component is still loading.
 
-## Derived Metric
-Calculated value from base data.
-```ts
-const open = tickets.filter((t) => !["resolved","closed"].includes(t.status)).length;
-```
+**Route group** — a folder in parentheses that organizes files without adding a URL segment.
+`src/app/(auth)/login/page.tsx` is served at `/login`.
 
-## DTO-style Response Contract
-Returning data shaped for UI consumption, not raw internals.
-```ts
-return ok({ kpis: { openTickets, resolvedTickets, ... } });
-```
+**Server-Sent Events (SSE)** — a one-way stream from server to browser over HTTP.
+`src/app/api/events/stream/route.ts` sends a `ready` event and then a `heartbeat` every 15 seconds; no
+UI subscribes to it yet.
 
-## Progressive Infrastructure
-Having config for future systems while MVP runs simpler runtime.
-```ts
-// drizzle config exists, but store currently writes JSON file
-```
+**CSS custom properties (design tokens)** — shared values defined once.
+`src/app/globals.css:11-13`: `--accent: #0077ff;`, `--accent-soft`, `--danger: #d63939;`.
 
-## Mini-example beyond project
-If you build a “tasks” app, use the same envelope + guard pattern:
-```ts
-if (!user) return fail("UNAUTHORIZED", "Login required", 401);
-return ok({ tasks });
-```
+## Placeholders
 
+**Stub endpoint** — a route that keeps an API contract while doing nothing.
+`src/app/api/notifications/route.ts:5`: `return ok({ notifications: [] as Array<Record<string, unknown>> });`
+
+**Placeholder infrastructure** — config for systems the app does not run: `docker-compose.yml`
+(Postgres, Redis, worker; no `Dockerfile`), `drizzle.config.ts` (schema is a placeholder object), and
+the maintained repo's `.env.example`, which this copy lacks (no code reads `process.env` either way).
